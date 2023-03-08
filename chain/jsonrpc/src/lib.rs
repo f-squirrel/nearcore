@@ -614,6 +614,7 @@ impl JsonRpcHandler {
     ) -> Result<ProcessTxResponse, near_jsonrpc_primitives::types::transactions::RpcTransactionError>
     {
         let tx_hash = tx.get_hash();
+        tracing::trace!(target: "transaction_lifetime", %tx_hash, stage = "jsonrpc::send_tx");
         let signer_account_id = tx.transaction.signer_id.clone();
         let response = self
             .client_addr

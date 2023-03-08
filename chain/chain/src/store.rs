@@ -1835,6 +1835,11 @@ impl<'a> ChainStoreUpdate<'a> {
     ) {
         let mut outcome_ids = Vec::with_capacity(outcomes.len());
         for (outcome_with_id, proof) in outcomes.into_iter().zip(proofs.into_iter()) {
+            tracing::trace!(
+                target: "transaction_lifetime",
+                tx_hash = %outcome_with_id.id,
+                stage = "chain::about_to_save_outcome"
+            );
             outcome_ids.push(outcome_with_id.id);
             self.chain_store_cache_update.outcomes.insert(
                 (outcome_with_id.id, *block_hash),

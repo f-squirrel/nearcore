@@ -528,6 +528,13 @@ impl NightshadeRuntime {
 
         let total_gas_burnt =
             apply_result.outcomes.iter().map(|tx_result| tx_result.outcome.gas_burnt).sum();
+        for outcome in &apply_result.outcomes {
+            tracing::trace!(
+                target: "transaction_lifetime",
+                tx_hash = %outcome.id,
+                stage = "runtime::applied"
+            );
+        }
         metrics::APPLY_CHUNK_DELAY
             .with_label_values(&[&format_total_gas_burnt(total_gas_burnt)])
             .observe(elapsed.as_secs_f64());
