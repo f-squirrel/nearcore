@@ -201,7 +201,7 @@ tracing = { version = "0.1.36", features = ["std"] }
 tracing-appender = "0.2.2"
 tracing-opentelemetry = "0.17.0"
 tracing-span-tree = "0.1"
-tracing-subscriber = { version = "0.3.15", features = ["env-filter", "fmt", "registry", "std"] }
+tracing-subscriber = { version = "0.3.15", features = ["env-filter", "fmt", "registry", "std", "json"] }
 turn = "0.6"
 validator = "0.12"
 rkyv = { version = "0.7", features = ["strict"] }
