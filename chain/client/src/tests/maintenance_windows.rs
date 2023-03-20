@@ -13,7 +13,7 @@ fn test_get_maintenance_windows_for_validator() {
     init_test_logger();
     run_actix(async {
         let actor_handles =
-            setup_no_network(vec!["test".parse().unwrap()], "other".parse().unwrap(), true, true);
+            setup_no_network(vec!["test".parse().unwrap(), "other".parse().unwrap()], "other".parse().unwrap(), true, true);
         let actor = actor_handles.view_client_actor.send(
             GetMaintenanceWindows { account_id: "test".parse().unwrap() }.with_span_context(),
         );
