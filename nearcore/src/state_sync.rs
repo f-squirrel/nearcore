@@ -411,13 +411,18 @@ fn get_in_progress_data(
     sync_hash: CryptoHash,
     chain: &Chain,
 ) -> Result<(StateRoot, u64, CryptoHash), Error> {
+    tracing::debug!(target: "state_sync_dump", shard_id, ?sync_hash, "get_in_progress_data");
     let state_header = chain.get_state_response_header(shard_id, sync_hash)?;
     let state_root = state_header.chunk_prev_state_root();
-    let num_parts = get_num_state_parts(state_header.state_root_node().memory_usage);
+    let state_root_node = state_header.state_root_node();
+    let state_root_node_memory_usage = state_root_node.memory_usage;
+    tracing::debug!(target: "state_sync_dump", shard_id, ?sync_hash, ?state_root, state_root_node_memory_usage);
+    let num_parts = get_num_state_parts(state_root_node_memory_usage);
 
     let sync_block_header = chain.get_block_header(&sync_hash)?;
     let sync_prev_block_header = chain.get_previous_header(&sync_block_header)?;
     let sync_prev_prev_hash = sync_prev_block_header.prev_hash();
+    tracing::debug!(target: "state_sync_dump", shard_id, ?sync_hash, ?state_root, num_parts, ?sync_prev_prev_hash, "get_in_progress_data result");
     Ok((state_root, num_parts, *sync_prev_prev_hash))
 }
 
