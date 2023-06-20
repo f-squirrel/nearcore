@@ -541,7 +541,9 @@ fn get_latest_epoch(shard_id: ShardId, chain: &Chain) -> Result<(EpochId, Crypto
     let hash = head.last_block_hash;
     let header = chain.get_block_header(&hash)?;
     let final_hash = header.last_final_block();
+    let final_header = chain.get_block_header(&final_hash);
+    let epoch_id = final_header.epoch_id.clone();
     let sync_hash = StateSync::get_epoch_start_sync_hash(chain, final_hash)?;
 
-    Ok((head.epoch_id, sync_hash))
+    Ok((epoch_id, sync_hash))
 }
