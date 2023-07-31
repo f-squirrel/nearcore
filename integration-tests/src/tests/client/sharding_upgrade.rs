@@ -32,6 +32,7 @@ use near_chain::test_utils::wait_for_all_blocks_in_processing;
 use rand::seq::{IteratorRandom, SliceRandom};
 use rand::{thread_rng, Rng};
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::ops::Index;
 use std::sync::Arc;
 
 use super::utils::TestEnvNightshadeSetupExt;
@@ -46,7 +47,7 @@ const SIMPLE_NIGHTSHADE_V2_PROTOCOL_VERSION: ProtocolVersion =
 #[cfg(not(feature = "protocol_feature_simple_nightshade_v2"))]
 const SIMPLE_NIGHTSHADE_V2_PROTOCOL_VERSION: ProtocolVersion = PROTOCOL_VERSION + 1;
 
-const P_CATCHUP: f64 = 0.2;
+// const P_CATCHUP: f64 = 0.2;
 
 // Return the expected number of shards.
 // The number of shards depends on height and whether shard layout V2 is enabled.
@@ -243,6 +244,33 @@ impl TestShardUpgradeEnv {
         env.process_partial_encoded_chunks();
         for j in 0..self.num_clients {
             env.process_shards_manager_responses_and_finish_processing_blocks(j);
+        }
+
+        if height == 20 || height == 21 {
+            for i in 0..self.num_clients {
+                tracing::debug!(target:"test", client=i, height, "printing tries");
+                let client = &env.clients[i];
+
+                let shard_layout = client
+                    .epoch_manager
+                    .get_shard_layout_from_prev_block(&head.last_block_hash)
+                    .unwrap();
+
+                tracing::debug!(target:"test", client=i, height, "printing tries - num shards {}", shard_layout.num_shards());
+                let tries = client.runtime_adapter.get_tries();
+                for shard_id in 0..shard_layout.num_shards() {
+                    tracing::debug!(target:"test", client=i, height, "printing tries - shard id {}", shard_id);
+                    let shard_id = shard_id as u32;
+                    let version = shard_layout.version();
+                    let chunks = block.chunks();
+                    let chunk_header = chunks.index(shard_id as usize);
+                    // TODO is that the right state root? prev or current???
+                    let state_root = chunk_header.prev_state_root();
+                    let shard_uid = near_store::ShardUId { version, shard_id };
+                    let trie = tries.get_trie_for_shard(shard_uid, state_root);
+                    trie.print_recursive_leaves(&mut std::io::stdout().lock(), 1000);
+                }
+            }
         }
 
         // after state split, check chunk extra exists and the states are correct
@@ -596,7 +624,8 @@ fn test_shard_layout_upgrade_simple() {
 
     // setup
     let epoch_length = 5;
-    let mut test_env = TestShardUpgradeEnv::new(epoch_length, 2, 2, 100, None);
+    // let mut test_env = TestShardUpgradeEnv::new(epoch_length, 2, 2, 100, None);
+    let mut test_env = TestShardUpgradeEnv::new(epoch_length, 2, 2, 10, None);
     test_env.set_init_tx(vec![]);
 
     let mut nonce = 100;
