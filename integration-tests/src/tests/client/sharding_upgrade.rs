@@ -203,7 +203,8 @@ impl TestShardUpgradeEnv {
         // by chance. This simulates when catchup takes a long time to be done
         // Note: if the catchup happens only at the last block of an epoch then
         // client will fail to produce the chunks in the first block of the next epoch.
-        let should_catchup = rng.gen_bool(P_CATCHUP) || height % self.epoch_length == 0;
+        // let should_catchup = rng.gen_bool(P_CATCHUP) || height % self.epoch_length == 0;
+        let should_catchup = (height + 1) % self.epoch_length == 0;
         // process block, this also triggers chunk producers for the next block to produce chunks
         for j in 0..self.num_clients {
             let produce_chunks = !rng.gen_bool(p_drop_chunk);
