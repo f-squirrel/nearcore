@@ -1,5 +1,7 @@
+use anyhow::anyhow;
 use borsh::BorshSerialize;
 use near_client::{Client, ProcessTxResponse};
+use near_store::ShardUId;
 
 use crate::tests::client::process_blocks::set_block_protocol_version;
 use near_chain::near_chain_primitives::Error;
@@ -248,7 +250,6 @@ impl TestShardUpgradeEnv {
 
         if height == 20 || height == 21 {
             for i in 0..self.num_clients {
-                tracing::debug!(target:"test", client=i, height, "printing tries");
                 let client = &env.clients[i];
 
                 let shard_layout = client
@@ -256,10 +257,9 @@ impl TestShardUpgradeEnv {
                     .get_shard_layout_from_prev_block(&head.last_block_hash)
                     .unwrap();
 
-                tracing::debug!(target:"test", client=i, height, "printing tries - num shards {}", shard_layout.num_shards());
+                // tracing::debug!(target:"test", client=i, height, num_shards=shard_layout.num_shards(), "printing tries");
                 let tries = client.runtime_adapter.get_tries();
                 for shard_id in 0..shard_layout.num_shards() {
-                    tracing::debug!(target:"test", client=i, height, "printing tries - shard id {}", shard_id);
                     let shard_id = shard_id as u32;
                     let version = shard_layout.version();
                     let chunks = block.chunks();
@@ -268,7 +268,25 @@ impl TestShardUpgradeEnv {
                     let state_root = chunk_header.prev_state_root();
                     let shard_uid = near_store::ShardUId { version, shard_id };
                     let trie = tries.get_trie_for_shard(shard_uid, state_root);
+                    tracing::debug!(target:"test", client=i, height, shard_id, version, ?state_root, "printing tries");
                     trie.print_recursive_leaves(&mut std::io::stdout().lock(), 1000);
+                }
+            }
+        }
+
+        if height == 15 {
+            for i in 0..self.num_clients {
+                let client = &env.clients[i];
+                let flat_storage_manager = client.runtime_adapter.get_flat_storage_manager();
+                let flat_storage_manager = flat_storage_manager
+                    .ok_or(anyhow!("failed getting flat storage manager"))
+                    .unwrap();
+                for shard_id in 0..5 {
+                    for version in 0..3 {
+                        let shard_uid = ShardUId { shard_id, version };
+                        let status = flat_storage_manager.get_flat_storage_status(shard_uid);
+                        tracing::debug!(target: "test", client=i, height, shard_id, version, ?status, "flat storage status");
+                    }
                 }
             }
         }
@@ -625,7 +643,7 @@ fn test_shard_layout_upgrade_simple() {
     // setup
     let epoch_length = 5;
     // let mut test_env = TestShardUpgradeEnv::new(epoch_length, 2, 2, 100, None);
-    let mut test_env = TestShardUpgradeEnv::new(epoch_length, 2, 2, 10, None);
+    let mut test_env = TestShardUpgradeEnv::new(epoch_length, 2, 2, 5, None);
     test_env.set_init_tx(vec![]);
 
     let mut nonce = 100;
@@ -655,9 +673,12 @@ fn test_shard_layout_upgrade_simple() {
     let skip_heights = vec![2 * epoch_length + 1, 4 * epoch_length + 1];
 
     // add transactions until after sharding upgrade finishes
-    for height in 2..5 * epoch_length - 1 {
+    // for height in 2..5 * epoch_length - 1 {
+    // for height in vec![15] {
+    for height in vec![] {
         let check_accounts = !skip_heights.contains(&height);
-        let txs = generate_create_accounts_txs(10, check_accounts);
+        let txs = generate_create_accounts_txs(1, check_accounts);
+        // let txs = generate_create_accounts_txs(10, check_accounts);
         test_env.set_tx_at_height(height, txs);
     }
 
