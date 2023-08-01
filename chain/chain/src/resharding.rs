@@ -148,6 +148,7 @@ impl Chain {
                     }
                     FlatStateValue::Inlined(inline_value) => inline_value,
                 };
+                tracing::trace!(target: "resharding", ?shard_uid, "flat state entry");
                 (key, value)
             },
         );

@@ -663,8 +663,13 @@ impl Trie {
                 Err(_) => " ".repeat(key.len()),
             };
             let state_record = StateRecord::from_raw_key_value(key.clone(), value);
+            if let Some(state_record) = &state_record {
+                if state_record.get_type_string() != "Account" {
+                    continue;
+                }
+            }
 
-            writeln!(f, "{} {state_record:?}", key_string).expect("write failed");
+            writeln!(f, "printing trie {} {state_record:?}", key_string).expect("write failed");
         }
     }
 
