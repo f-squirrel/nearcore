@@ -5,7 +5,7 @@ use crate::logic::errors::{
     CacheError, CompilationError, FunctionCallError, MethodResolveError, VMRunnerError, WasmTrap,
 };
 use crate::logic::gas_counter::FastGasCounter;
-use crate::logic::types::{PromiseResult, ProtocolVersion};
+use crate::logic::types::PromiseResult;
 use crate::logic::{
     CompiledContract, CompiledContractCache, Config, External, MemSlice, MemoryLike, VMContext,
     VMLogic, VMOutcome,
@@ -568,7 +568,6 @@ impl crate::runner::VM for Wasmer2VM {
         context: VMContext,
         fees_config: &RuntimeFeesConfig,
         promise_results: &[PromiseResult],
-        current_protocol_version: ProtocolVersion,
         cache: Option<&dyn CompiledContractCache>,
     ) -> Result<VMOutcome, VMRunnerError> {
         let mut memory = Wasmer2Memory::new(
@@ -600,12 +599,7 @@ impl crate::runner::VM for Wasmer2VM {
         if let Err(e) = result {
             return Ok(VMOutcome::abort(logic, e));
         }
-        let import = imports::wasmer2::build(
-            vmmemory,
-            &mut logic,
-            current_protocol_version,
-            artifact.engine(),
-        );
+        let import = imports::wasmer2::build(vmmemory, &mut logic, artifact.engine());
         if let Err(e) = get_entrypoint_index(&*artifact, method_name) {
             return Ok(VMOutcome::abort_but_nop_outcome_in_old_protocol(logic, e));
         }
