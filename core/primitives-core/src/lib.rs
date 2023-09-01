@@ -6,7 +6,6 @@ pub mod config;
 pub mod contract;
 pub mod hash;
 pub mod parameter;
-pub mod profile;
 pub mod runtime;
 pub mod serialize;
 pub mod types;
