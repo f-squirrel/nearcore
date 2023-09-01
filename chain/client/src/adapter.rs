@@ -161,7 +161,7 @@ impl near_network::client::Client for Adapter {
         match self
             .view_client_addr
             .send(
-                TxStatusRequest { tx_hash: tx_hash, signer_account_id: account_id }
+                TxStatusRequest { tx_hash, signer_account_id: account_id }
                     .with_span_context(),
             )
             .await
@@ -195,7 +195,7 @@ impl near_network::client::Client for Adapter {
         match self
             .view_client_addr
             .send(
-                StateRequestHeader { shard_id: shard_id, sync_hash: sync_hash }.with_span_context(),
+                StateRequestHeader { shard_id, sync_hash }.with_span_context(),
             )
             .await
         {
@@ -217,7 +217,7 @@ impl near_network::client::Client for Adapter {
         match self
             .view_client_addr
             .send(
-                StateRequestPart { shard_id: shard_id, sync_hash: sync_hash, part_id: part_id }
+                StateRequestPart { shard_id, sync_hash, part_id }
                     .with_span_context(),
             )
             .await
