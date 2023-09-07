@@ -132,7 +132,7 @@ pub fn precompile_contract(
 
 pub static CONTRACT_PRECOMPILATIONS_NOT_ALREADY_IN_CACHE: Lazy<IntCounter> = Lazy::new(|| {
     try_create_int_counter(
-        "contract_recompilations_not_already_in_cache",
+        "near_contract_recompilations_not_already_in_cache",
         "Number of times a contract was recompiled because it was not already in the cache",
     )
     .unwrap()
@@ -140,7 +140,7 @@ pub static CONTRACT_PRECOMPILATIONS_NOT_ALREADY_IN_CACHE: Lazy<IntCounter> = Laz
 
 pub static CONTRACT_PRECOMPILATION_CACHE_LOOKUP_TIME_MS: Lazy<Counter> = Lazy::new(|| {
     try_create_counter(
-        "contract_precompilation_cache_lookup_time_ms",
+        "near_contract_precompilation_cache_lookup_time_ms",
         "Milliseconds spent looking up a contract in the precompilation cache",
     )
     .unwrap()
@@ -148,7 +148,7 @@ pub static CONTRACT_PRECOMPILATION_CACHE_LOOKUP_TIME_MS: Lazy<Counter> = Lazy::n
 
 pub static CONTRACT_PRECOMPILATION_NUMBER_OF_LOOKUPS: Lazy<IntCounter> = Lazy::new(|| {
     try_create_int_counter(
-        "contract_precompilation_number_of_lookups",
+        "near_contract_precompilation_number_of_lookups",
         "Number of times a contract was looked up in the precompilation cache",
     )
     .unwrap()
