@@ -29,11 +29,6 @@ use std::hash::{Hash, Hasher};
 use std::mem::size_of;
 use std::sync::Arc;
 
-use near_o11y::metrics::{try_create_counter, try_create_int_counter};
-use once_cell::sync::Lazy;
-use prometheus::{Counter, IntCounter};
-use std::time::Instant;
-
 #[derive(Clone)]
 pub struct NearVmMemory(Arc<LinearMemory>);
 
@@ -302,8 +297,6 @@ impl NearVM {
         code: &ContractCode,
         cache: Option<&dyn CompiledContractCache>,
     ) -> Result<Result<UniversalExecutable, CompilationError>, CacheError> {
-        CONTRACT_COMPILATION_NUMBER_OF_COMPILES.inc();
-        let time_before_compile = Instant::now();
         let executable_or_error = self.compile_uncached(code);
         let key = get_contract_cache_key(code, VMKind::NearVm, &self.config);
 
@@ -320,7 +313,6 @@ impl NearVM {
             cache.put(&key, record).map_err(CacheError::WriteError)?;
         }
 
-        CONTRACT_COMPILATION_TIME_MS.inc_by(time_before_compile.elapsed().as_secs_f64() * 1000.0);
         Ok(executable_or_error)
     }
 
@@ -338,50 +330,58 @@ impl NearVM {
         // re-parse invalid code (invalid code, in a sense, is a normal
         // outcome). And `cache`, being a database, can fail with an `io::Error`.
         let _span = tracing::debug_span!(target: "vm", "NearVM::compile_and_load").entered();
-        CONTRACT_COMPILATION_CACHE_NUMBER_OF_LOOKUPS.inc();
-        let key = get_contract_cache_key(code, VMKind::NearVm, &self.config);
-        let cache_record = cache
-            .map(|cache| {
-                let time_before_lookup = Instant::now();
-                let result = cache.get(&key);
-                CONTRACT_COMPILATION_CACHE_LOOKUP_TIME_MS
-                    .inc_by(time_before_lookup.elapsed().as_secs_f64() * 1000.0);
-                result
-            })
-            .transpose()
-            .map_err(CacheError::ReadError)?
-            .flatten();
 
-        let stored_artifact: Option<VMArtifact> = match cache_record {
-            None => None,
-            Some(CompiledContract::CompileModuleError(err)) => return Ok(Err(err)),
-            Some(CompiledContract::Code(serialized_module)) => {
-                let _span = tracing::debug_span!(target: "vm", "NearVM::read_from_cache").entered();
-                CONTRACT_COMPILATION_CACHE_NUMBER_OF_HITS.inc();
-                let time_before_load = Instant::now();
-                let result = unsafe {
-                    // (UN-)SAFETY: the `serialized_module` must have been produced by a prior call to
-                    // `serialize`.
-                    //
-                    // In practice this is not necessarily true. One could have forgotten to change the
-                    // cache key when upgrading the version of the near_vm library or the database could
-                    // have had its data corrupted while at rest.
-                    //
-                    // There should definitely be some validation in near_vm to ensure we load what we think
-                    // we load.
-                    let executable = UniversalExecutableRef::deserialize(&serialized_module)
-                        .map_err(|_| CacheError::DeserializationError)?;
-                    let artifact = self
+        let key = get_contract_cache_key(code, VMKind::NearVm, &self.config);
+
+        let compile_or_read_from_cache = || -> VMResult<Result<VMArtifact, CompilationError>> {
+            let _span =
+                tracing::debug_span!(target: "vm", "NearVM::compile_or_read_from_cache").entered();
+            let cache_record = cache
+                .map(|cache| cache.get(&key))
+                .transpose()
+                .map_err(CacheError::ReadError)?
+                .flatten();
+
+            let stored_artifact: Option<VMArtifact> = match cache_record {
+                None => None,
+                Some(CompiledContract::CompileModuleError(err)) => return Ok(Err(err)),
+                Some(CompiledContract::Code(serialized_module)) => {
+                    let _span =
+                        tracing::debug_span!(target: "vm", "NearVM::read_from_cache").entered();
+                    unsafe {
+                        // (UN-)SAFETY: the `serialized_module` must have been produced by a prior call to
+                        // `serialize`.
+                        //
+                        // In practice this is not necessarily true. One could have forgotten to change the
+                        // cache key when upgrading the version of the near_vm library or the database could
+                        // have had its data corrupted while at rest.
+                        //
+                        // There should definitely be some validation in near_vm to ensure we load what we think
+                        // we load.
+                        let executable = UniversalExecutableRef::deserialize(&serialized_module)
+                            .map_err(|_| CacheError::DeserializationError)?;
+                        let artifact = self
+                            .engine
+                            .load_universal_executable_ref(&executable)
+                            .map(Arc::new)
+                            .map_err(|err| VMRunnerError::LoadingError(err.to_string()))?;
+                        Some(artifact)
+                    }
+                }
+            };
+
+            Ok(if let Some(it) = stored_artifact {
+                Ok(it)
+            } else {
+                match self.compile_and_cache(code, cache)? {
+                    Ok(executable) => Ok(self
                         .engine
-                        .load_universal_executable_ref(&executable)
+                        .load_universal_executable(&executable)
                         .map(Arc::new)
-                        .map_err(|err| VMRunnerError::LoadingError(err.to_string()))?;
-                    Some(artifact)
-                };
-                CONTRACT_COMPILATION_CACHE_LOAD_TIME_MS
-                    .inc_by(time_before_load.elapsed().as_secs_f64() * 1000.0);
-                result
-            }
+                        .map_err(|err| VMRunnerError::LoadingError(err.to_string()))?),
+                    Err(err) => Err(err),
+                }
+            })
         };
 
         #[cfg(feature = "no_cache")]
@@ -743,48 +743,3 @@ impl crate::runner::VM for NearVM {
 fn test_memory_like() {
     near_vm_logic::test_utils::test_memory_like(|| Box::new(NearVmMemory::new(1, 1).unwrap()));
 }
-
-pub static CONTRACT_COMPILATION_CACHE_NUMBER_OF_LOOKUPS: Lazy<IntCounter> = Lazy::new(|| {
-    try_create_int_counter(
-        "near_contract_compilation_cache_number_of_lookups",
-        "Number of times a contract was looked up in the compilation cache",
-    )
-    .unwrap()
-});
-
-pub static CONTRACT_COMPILATION_CACHE_LOOKUP_TIME_MS: Lazy<Counter> = Lazy::new(|| {
-    try_create_counter(
-        "near_contract_compilation_cache_lookup_time_ms",
-        "Time spent looking up a contract in the compilation cache",
-    )
-    .unwrap()
-});
-
-pub static CONTRACT_COMPILATION_CACHE_NUMBER_OF_HITS: Lazy<IntCounter> = Lazy::new(|| {
-    try_create_int_counter(
-        "near_contract_compilation_cache_number_of_hits",
-        "Number of times a contract was found in the compilation cache",
-    )
-    .unwrap()
-});
-
-pub static CONTRACT_COMPILATION_CACHE_LOAD_TIME_MS: Lazy<Counter> = Lazy::new(|| {
-    try_create_counter(
-        "near_contract_compilation_cache_load_time_ms",
-        "Time spent loading a contract from the compilation cache, after lookup",
-    )
-    .unwrap()
-});
-
-pub static CONTRACT_COMPILATION_NUMBER_OF_COMPILES: Lazy<IntCounter> = Lazy::new(|| {
-    try_create_int_counter(
-        "near_contract_compilation_number_of_compiles",
-        "Number of times a contract was compiled",
-    )
-    .unwrap()
-});
-
-pub static CONTRACT_COMPILATION_TIME_MS: Lazy<Counter> = Lazy::new(|| {
-    try_create_counter("near_contract_compilation_time_ms", "Time spent compiling a contract")
-        .unwrap()
-});
