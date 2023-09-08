@@ -132,7 +132,7 @@ pub fn precompile_contract(
 
 pub static CONTRACT_PRECOMPILATIONS_NOT_ALREADY_IN_CACHE: Lazy<IntCounter> = Lazy::new(|| {
     try_create_int_counter(
-        "near_contract_recompilations_not_already_in_cache",
+        "near_contract_precompilations_not_already_in_cache",
         "Number of times a contract was recompiled because it was not already in the cache",
     )
     .unwrap()
